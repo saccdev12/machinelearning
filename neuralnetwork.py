@@ -3,73 +3,84 @@ import random
 
 class NeuralNetwork():
 
-    def __init__(self):
-
-        # Seed the random number generator, so we get the same random numbers each time.
+    def __init__(self, input_neurons, hidden_neurons, output_neurons):
+        # Inicializar pesos para la capa oculta y la capa de salida
         random.seed(1)
-        
-        # Create 3 weights and set them to random values in the range -1 to +1
-        self.weights = [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)]
+        self.hidden_weights = [[random.uniform(-1, 1) for _ in range(input_neurons)] for _ in range(hidden_neurons)]
+        self.output_weights = [random.uniform(-1, 1) for _ in range(hidden_neurons)]
 
-    # Make a prediction
-    def think(self, neuron_inputs):
-        sum_of_weighted_inputs = self.__sum_of_weighted_inputs(neuron_inputs)
-        neuron_output = self.__sigmoid(sum_of_weighted_inputs)
-        return neuron_output
+    # Función para realizar una predicción
+    def think(self, inputs):
+        # Calcular las salidas de la capa oculta
+        hidden_layer_outputs = [self.__sigmoid(self.__sum_of_weighted_inputs(inputs, self.hidden_weights[i]))
+                                for i in range(len(self.hidden_weights))]
+        # Calcular la salida final
+        output = self.__sigmoid(self.__sum_of_weighted_inputs(hidden_layer_outputs, self.output_weights))
+        return output
 
-    # Adjust the weights of the neural network to minimise the error for the training set
+    # Entrenar la red neuronal
     def train(self, training_set_examples, number_of_iterations):
         for iteration in range(number_of_iterations):
-            for training_set_example in training_set_examples:
+            for example in training_set_examples:
+                inputs = example["inputs"]
+                expected_output = example["output"]
 
-                # Predict the output based on the training set example inputs
-                predicted_output = self.think(training_set_example["inputs"])
+                # Forward pass
+                hidden_layer_outputs = [self.__sigmoid(self.__sum_of_weighted_inputs(inputs, self.hidden_weights[i]))
+                                        for i in range(len(self.hidden_weights))]
+                output = self.__sigmoid(self.__sum_of_weighted_inputs(hidden_layer_outputs, self.output_weights))
 
-                # Calculate the error as the difference between the derired output and the predicted output
-                error_in_output = training_set_example["output"] - predicted_output
+                # Calcular errores
+                output_error = expected_output - output
+                hidden_errors = [output_error * self.output_weights[i] * self.__sigmoid_gradient(hidden_layer_outputs[i])
+                                 for i in range(len(self.hidden_weights))]
 
-                # Iterate through the weights and adjust each one
-                for index in range(len(self.weights)):
+                # Backpropagation: ajustar los pesos de la capa de salida
+                for i in range(len(self.output_weights)):
+                    self.output_weights[i] += hidden_layer_outputs[i] * output_error * self.__sigmoid_gradient(output)
 
-                    # Get the neuron's input associated with this weight
-                    neuron_input = training_set_example["inputs"][index]
+                # Backpropagation: ajustar los pesos de la capa oculta
+                for i in range(len(self.hidden_weights)):
+                    for j in range(len(self.hidden_weights[i])):
+                        self.hidden_weights[i][j] += inputs[j] * hidden_errors[i]
 
-                    # Calculate how much to adjust the weights by using the delta rule (gradient descent)
-                    adjust_weight = neuron_input * error_in_output * self.__sigmoid_gradient(predicted_output)
+    # Calcular la suma ponderada de entradas
+    def __sum_of_weighted_inputs(self, inputs, weights):
+        return sum(input_value * weight for input_value, weight in zip(inputs, weights))
 
-                    # Adjust the weights
-                    self.weights[index] += adjust_weight
+    # Función sigmoide
+    def __sigmoid(self, x):
+        return 1 / (1 + math.exp(-x))
 
-    # Calculate the sigmoid (our activation function)
-    def __sigmoid(self, sum_of_weighted_inputs):
-        return 1/ (1 + math.exp(-sum_of_weighted_inputs))
-
-    # Calculate the gradient of the sigmoid using its own output
-    def __sigmoid_gradient(self, neuron_output):
-        return neuron_output * (1 - neuron_output)
-
-    # Multiply each input by its own weight, and then sum the total
-    def __sum_of_weighted_inputs(self, neuron_inputs):
-        sum_of_weighted_inputs = 0
-        for index, neuron_input in enumerate(neuron_inputs):
-            sum_of_weighted_inputs += self.weights[index] * neuron_input
-            return sum_of_weighted_inputs
-        
-neural_network = NeuralNetwork()
-
-print("Random starting weights: "+ str(neural_network.weights))
+    # Gradiente de la función sigmoide
+    def __sigmoid_gradient(self, output):
+        return output * (1 - output)
 
 
-# The neural network will use this training set of 4 examples, to learn the patern
-training_set_examples = [{"inputs":[0, 0, 1], "output":0}, {"inputs":[1, 1, 1], "output":1}, {"inputs":[1, 0, 1], "output":1}, {"inputs":[0, 1, 1], "output":0}]
+# Crear una red neuronal con 3 entradas, 4 neuronas en la capa oculta y 1 salida
+neural_network = NeuralNetwork(input_neurons=3, hidden_neurons=4, output_neurons=1)
 
-# Train the neural network using 10,000 iterations
-neural_network.train(training_set_examples, number_of_iterations = 10000)
+print("Pesos iniciales de la capa oculta: " + str(neural_network.hidden_weights))
+print("Pesos iniciales de la capa de salida: " + str(neural_network.output_weights))
 
-print("New weights after training: " + str(neural_network.weights))
+# Conjunto de entrenamiento
+training_set_examples = [
+    {"inputs": [0, 0, 1], "output": 0},
+    {"inputs": [1, 1, 1], "output": 1},
+    {"inputs": [1, 0, 1], "output": 1},
+    {"inputs": [0, 1, 1], "output": 0}
+]
 
-# Make a prediction for a new situation
-new_situation = [1, 1, 0]
+# Entrenar la red neuronal
+neural_network.train(training_set_examples, number_of_iterations=10000)
+
+print("Pesos ajustados de la capa oculta: " + str(neural_network.hidden_weights))
+print("Pesos ajustados de la capa de salida: " + str(neural_network.output_weights))
+
+# Solicitar al usuario que ingrese los valores de la nueva situación
+new_situation = input("Ingrese los valores de la nueva situación separados por comas (por ejemplo, 1,0,0): ")
+new_situation = [int(value.strip()) for value in new_situation.split(",")]
+
+# Realizar la predicción
 prediction = neural_network.think(new_situation)
-
-print("Prediction for the new situation [1, 1, 0] --> " + str(prediction))
+print("Predicción para la nueva situación --> " + str(prediction))
